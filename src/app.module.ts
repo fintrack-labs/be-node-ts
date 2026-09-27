@@ -11,6 +11,7 @@ import { CategoriesModule } from './modules/categories/categories.module.js';
 import { AccountsModule } from './modules/accounts/accounts.module.js';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { UserContextInterceptor } from '@common/interceptors/user-context.interceptor.js';
+import { TransactionsModule } from './modules/transactions/transactions.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { UserContextInterceptor } from '@common/interceptors/user-context.interc
     AuthModule,
     CategoriesModule,
     AccountsModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [

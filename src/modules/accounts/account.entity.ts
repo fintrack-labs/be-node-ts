@@ -1,7 +1,7 @@
 import { AccountType, CurrencyType } from "@common/appConstants.js";
 import { NumericTransformer } from "@common/dto/numeric-transformer.js";
 import { BaseEntity } from "@common/entities/base.entity.js";
-import { Column, Entity } from "typeorm";
+import { Column, Entity, VersionColumn } from "typeorm";
 
 @Entity({ name: "accounts" })
 export class Account extends BaseEntity {
@@ -22,4 +22,7 @@ export class Account extends BaseEntity {
 
     @Column({ name: 'currency', type: 'varchar', length: 3 })
     currency: CurrencyType;
+
+    @VersionColumn()
+    version: number;
 }

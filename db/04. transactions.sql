@@ -11,6 +11,7 @@ CREATE TABLE transactions (
     merchant_name VARCHAR(100) NULL,
     description TEXT NULL,
     receipt_image_url VARCHAR(255) NULL,
+    note VARCHAR(255) NULL,
     is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
     -- Audit Trail & Soft Delete
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
