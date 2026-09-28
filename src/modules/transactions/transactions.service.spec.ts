@@ -75,7 +75,7 @@ describe('TransactionsService (TDD)', () => {
     );
   });
 
-  it('create transaction with FALSE destination account (not found) must throw error', async () => {
+  it('create transaction with destination account (other user) must throw error', async () => {
     const dto: CreateTransactionDto = {
       destinationAccountId: 1,
       type: TransactionType.INCOME,
@@ -166,5 +166,47 @@ describe('TransactionsService (TDD)', () => {
 
     expect(savedSource.balance).toBe(80000);
     expect(savedDest.balance).toBe(70000);
+  });
+
+  it('create income transaction must update dest balance', async () => {
+    const dto: CreateTransactionDto = {
+      destinationAccountId: 1,
+      type: TransactionType.INCOME,
+      amount: 20000,
+    };
+    const mockAccount = { id: 1, userId, balance: 50000 };
+    mockFindOne.mockResolvedValueOnce(mockAccount);
+
+    const savedEntities: any[] = [];
+    mockSave.mockImplementation(async (entity: any) => {
+      savedEntities.push(entity);
+      return entity;
+    });
+
+    await service.create(userId, dto);
+    const savedDest = savedEntities.find((ent) => ent.id === 1);
+    expect(savedDest).toBeDefined();
+    expect(savedDest.balance).toBe(70000);
+  });
+
+  it('create expense transaction must update source balance', async () => {
+    const dto: CreateTransactionDto = {
+      sourceAccountId: 1,
+      type: TransactionType.EXPENSE,
+      amount: 20000,
+    };
+    const mockAccount = { id: 1, userId, balance: 50000 };
+    mockFindOne.mockResolvedValueOnce(mockAccount);
+
+    const savedEntities: any[] = [];
+    mockSave.mockImplementation(async (entity: any) => {
+      savedEntities.push(entity);
+      return entity;
+    });
+
+    await service.create(userId, dto);
+    const savedSource = savedEntities.find((ent) => ent.id === 1);
+    expect(savedSource).toBeDefined();
+    expect(savedSource.balance).toBe(30000);
   });
 });

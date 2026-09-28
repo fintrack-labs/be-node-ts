@@ -5,8 +5,8 @@ export class CategoryResponseDto {
     @Expose()
     id: number;
 
-    @Expose()
-    userId: string | null;
+    // @Expose()
+    // userId: string | null;
 
     @Expose()
     name: string;

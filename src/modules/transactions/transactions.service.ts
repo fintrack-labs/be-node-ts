@@ -2,9 +2,11 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Transaction } from './transaction.entity.js';
-import { CreateTransactionDto, TransactionResponseDto } from './transaction.dto.js';
+import { AdjustBalanceDto, CreateTransactionDto, TransactionGetDto, TransactionResponseDto } from './transaction.dto.js';
 import { Account } from '../accounts/account.entity.js';
 import { TransactionType } from './transaction.enum.js';
+import { plainToInstance } from 'class-transformer';
+import { PaginatedResponse } from '@common/interfaces/paginated-response.interface.js';
 
 @Injectable()
 export class TransactionsService {
@@ -15,10 +17,7 @@ export class TransactionsService {
         private readonly dataSource: DataSource
     ) { }
 
-    // : Promise<TransactionResponseDto>
-    async create(userId: string, dto: CreateTransactionDto) {
-        console.log('DEBUG ', userId, dto)
-
+    async create(userId: string, dto: CreateTransactionDto): Promise<TransactionResponseDto> {
         // implement optimistic lock and retry
         return await this.dataSource.transaction(async (manager) => {
             let sourceAccount: Account | null = null;
@@ -96,11 +95,113 @@ export class TransactionsService {
             }
 
             // save transaction for log history
+            const transaction = manager.create(Transaction, Transaction.fromDto(dto, userId));
+            const savedTransaction = await manager.save(transaction);
+            return plainToInstance(TransactionResponseDto, savedTransaction, {
+                excludeExtraneousValues: true
+            });
+        })
+    }
+
+    async find(userId: string, queryDto: TransactionGetDto): Promise<PaginatedResponse<TransactionResponseDto>> {
+        const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', skip } = queryDto;
+        const queryBuilder = this.transactionRepository
+            .createQueryBuilder('transaction')
+            .where('transaction.userId = :userId', { userId });
+
+        // filter by dto not empty
+        if (queryDto.type) {
+            queryBuilder.andWhere("transaction.type = :type", { type: queryDto.type });
+        }
+        if (queryDto.paymentMethod) {
+            queryBuilder.andWhere("transaction.paymentMethod = :paymentMethod", { paymentMethod: queryDto.paymentMethod });
+        }
+        if (queryDto.categoryId) {
+            queryBuilder.andWhere("transaction.categoryId = :categoryId", { categoryId: queryDto.categoryId });
+        }
+        if (queryDto.description) {
+            queryBuilder.andWhere("transaction.description = :description", { description: queryDto.description });
+        }
+        if (queryDto.merchantName) {
+            queryBuilder.andWhere("transaction.merchantName = :merchantName", { merchantName: queryDto.merchantName });
+        }
+        if (queryDto.transactionDate) {
+            queryBuilder.andWhere("transaction.transactionDate = :transactionDate", { transactionDate: queryDto.transactionDate });
+        }
+        // sorting builder
+        if (sortBy && sortOrder) {
+            queryBuilder.orderBy(`transaction.${sortBy}`, sortOrder);
+        }
+        // pagination
+        queryBuilder.skip(skip).take(limit);
+
+        const [transactions, totalItems] = await queryBuilder.getManyAndCount();
+        const data = plainToInstance(TransactionResponseDto, transactions, {
+            excludeExtraneousValues: true
+        });
+        return {
+            data,
+            page,
+            limit,
+            totalItems,
+            pageCount: Math.ceil(totalItems / limit),
+        };
+    }
+
+    private async get(userId: string, id: number): Promise<Transaction> {
+        const queryBuilder = this.transactionRepository
+            .createQueryBuilder('transaction')
+            .where('transaction.id = :id', { id })
+            .andWhere('transaction.userId = :userId', { userId });
+
+        const transaction = await queryBuilder.getOne();
+        if (!transaction) {
+            throw new NotFoundException(`Transaction not found with id ${id}`);
+        }
+        return transaction
+    }
+
+    async getById(userId: string, id: number): Promise<TransactionResponseDto> {
+        const transaction = await this.get(userId, id);
+        return plainToInstance(TransactionResponseDto, transaction, {
+            excludeExtraneousValues: true
+        });
+    }
+
+    async adjutmentBalance(userId: string, dto: AdjustBalanceDto): Promise<TransactionResponseDto> {
+        // filter dto
+        if (!userId) {
+            throw new BadRequestException('User ID is required');
+        }
+        if (dto.actualBalance < 0) {
+            throw new BadRequestException('Actual balance must be greater than or equal to 0');
+        }
+
+        return this.dataSource.transaction(async (manager) => {
+            const account = await manager.findOne(Account, {
+                where: { id: dto.accountId, userId },
+                lock: { mode: 'pessimistic_write' }
+            });
+            if (!account) {
+                throw new NotFoundException(`Account not found with id ${dto.accountId}`);
+            }
+
+            const currentBalance = account.balance;
+            const diff = dto.actualBalance - currentBalance;
+
             const transaction = manager.create(Transaction, {
-                ...dto,
+                type: TransactionType.ADJUSTMENT,
+                amount: Math.abs(diff),
+                sourceAccountId: diff > 0 ? undefined : dto.accountId,
+                destinationAccountId: diff > 0 ? dto.accountId : undefined,
+                description: dto.reason || (diff > 0 ? 'Adjustment Balance Increased' : 'Adjustment Balance Decreased'),
                 userId
-            })
-            return await manager.save(transaction);
+            });
+
+            await manager.save(transaction);
+            return plainToInstance(TransactionResponseDto, transaction, {
+                excludeExtraneousValues: true
+            });
         })
     }
 }

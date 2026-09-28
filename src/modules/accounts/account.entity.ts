@@ -1,5 +1,5 @@
 import { AccountType, CurrencyType } from "@common/appConstants.js";
-import { NumericTransformer } from "@common/dto/numeric-transformer.js";
+import { NumericTransformer } from "@common/entities/numeric-transformer.js";
 import { BaseEntity } from "@common/entities/base.entity.js";
 import { Column, Entity, VersionColumn } from "typeorm";
 

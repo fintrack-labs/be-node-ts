@@ -11,3 +11,8 @@ export enum PaymentMethod {
     E_WALLET = 'E_WALLET',
     CREDIT_CARD = 'CREDIT_CARD',
 }
+
+export const ADJUSTMENT_REASON = {
+    INCREASE: 'INCREASE',
+    DECREASE: 'DECREASE',
+}

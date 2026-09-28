@@ -1,5 +1,7 @@
 import { IsEnum, IsNumber, IsOptional, IsPositive, IsString, IsBoolean, IsDateString, ValidateIf, IsNotEmpty } from 'class-validator';
 import { PaymentMethod, TransactionType } from './transaction.enum.js';
+import { PaginationQueryDto } from '@common/dto/pagination-query.dto.js';
+import { Expose, Transform } from 'class-transformer';
 
 export class CreateTransactionDto {
     @IsOptional()
@@ -29,10 +31,6 @@ export class CreateTransactionDto {
     amount: number;
 
     @IsOptional()
-    @IsDateString()
-    transactionDate?: string;
-
-    @IsOptional()
     @IsString()
     merchantName?: string;
 
@@ -54,5 +52,76 @@ export class CreateTransactionDto {
 }
 
 export class TransactionResponseDto {
+    constructor(partial: Partial<TransactionResponseDto>) {
+        Object.assign(this, partial);
+    }
+    @Expose()
+    id: number;
+    @Expose()
+    @Transform(({ obj }) => obj.accountId ?? null)
+    sourceAccountId?: number | null;
+    @Expose()
+    destinationAccountId?: number | null;
+    @Expose()
+    categoryId?: number | null;
+    @Expose()
+    type: TransactionType;
+    @Expose()
+    paymentMethod?: PaymentMethod;
+    @Expose()
+    amount: number;
+    @Expose()
+    merchantName?: string;
+    @Expose()
+    description?: string;
+    @Expose()
+    receiptImageUrl?: string;
+    @Expose()
+    note?: string;
+    @Expose()
+    isRecurring?: boolean;
+    @Expose()
+    transactionDate: Date;
+}
 
+export class TransactionGetDto extends PaginationQueryDto {
+    @Transform(({ value }) => (value === '' || value === 'null' ? null : value))
+    @IsOptional()
+    @IsEnum(TransactionType)
+    type?: TransactionType | '';
+
+    @IsOptional()
+    @IsEnum(PaymentMethod)
+    paymentMethod?: PaymentMethod;
+
+    @IsOptional()
+    @IsNumber()
+    categoryId?: number;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsOptional()
+    @IsString()
+    merchantName?: string;
+
+    @IsOptional()
+    @IsDateString()
+    transactionDate?: string;
+}
+
+export class AdjustBalanceDto {
+    @IsNotEmpty()
+    @IsNumber()
+    accountId: number;
+
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @IsPositive({ message: 'Actual balance should be greater than 0' })
+    @IsNotEmpty()
+    actualBalance: number;
+
+    @IsString()
+    @IsOptional()
+    reason?: string;
 }

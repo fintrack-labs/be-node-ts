@@ -17,14 +17,23 @@ async function bootstrap() {
     }),
   );
 
+  // CORS
+  app.enableCors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    credentials: true,
+  });
+
   // hook fastify
   const fastifyInstance = app.getHttpAdapter().getInstance();
+
   // hook for debug query before validate
   // fastifyInstance.addHook('preValidation', (request: any, reply: any, done: any) => {
   //   console.log('[FASTIFY HOOK DEBUG] Query Before Validate:', request.query);
   //   console.log('[FASTIFY HOOK DEBUG] Body Before Validate:', request.body);
   //   done();
   // });
+
   // hook for inject userContext and access in subscriber or interceptor
   fastifyInstance.addHook('preHandler', (req, reply, done) => {
     const user = (req as any).user as UserPojo;

@@ -2,9 +2,10 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from './category.entity.js';
 import { Repository } from 'typeorm';
-import { CategoryDto } from './dto/category.dto.js';
+import { CategoryDto, CategorySearchDto } from './dto/category.dto.js';
 import { plainToInstance } from 'class-transformer';
 import { CategoryResponseDto } from './dto/category.response.dto.js';
+import { PaginatedResponse } from '@common/interfaces/paginated-response.interface.js';
 
 @Injectable()
 export class CategoriesService {
@@ -57,7 +58,8 @@ export class CategoriesService {
         return category;
     }
 
-    async findAll(userId: string, dto: CategoryDto): Promise<CategoryResponseDto[]> {
+    async findAll(userId: string, dto: CategorySearchDto): Promise<PaginatedResponse<CategoryResponseDto>> {
+        const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', skip } = dto;
         const queryBuilder = this.categoryRepository
             .createQueryBuilder('category')
             .leftJoinAndSelect(
@@ -76,19 +78,24 @@ export class CategoriesService {
         } else {
             queryBuilder.andWhere('category.parentId IS NULL');
         }
-
-        const data = await queryBuilder
-            .orderBy('category.name', 'ASC')
-            .addOrderBy('children.name', 'ASC')
-            .getMany();
-
-        return plainToInstance(CategoryResponseDto, data, {
+        queryBuilder.skip(skip).take(limit);
+        queryBuilder.orderBy('category.name', 'ASC')
+            .addOrderBy('children.name', 'ASC');
+        const [categories, totalItems] = await queryBuilder.getManyAndCount();
+        const data = plainToInstance(CategoryResponseDto, categories, {
             excludeExtraneousValues: true
         });
+        return {
+            data,
+            page,
+            limit,
+            totalItems,
+            pageCount: Math.ceil(totalItems / limit),
+        };
     }
 
     async update(userId: string, id: number, dto: CategoryDto): Promise<CategoryResponseDto> {
-        const category = await this.findById(userId, id);
+        const category = await this.getById(userId, id);
         if (category.userId === null) {
             throw new UnauthorizedException('You are not authorized to update this category');
         }
