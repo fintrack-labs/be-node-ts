@@ -185,15 +185,18 @@ export class TransactionsService {
             if (!account) {
                 throw new NotFoundException(`Account not found with id ${dto.accountId}`);
             }
+            if (dto.actualBalance === account.balance) {
+                throw new BadRequestException('Actual balance is same as current balance');
+            }
 
-            const currentBalance = account.balance;
-            const diff = dto.actualBalance - currentBalance;
+            const diff = dto.actualBalance - account.balance;
+            account.balance = dto.actualBalance;
+            await manager.save(account);
 
             const transaction = manager.create(Transaction, {
                 type: TransactionType.ADJUSTMENT,
                 amount: Math.abs(diff),
-                sourceAccountId: diff > 0 ? undefined : dto.accountId,
-                destinationAccountId: diff > 0 ? dto.accountId : undefined,
+                accountId: dto.accountId,
                 description: dto.reason || (diff > 0 ? 'Adjustment Balance Increased' : 'Adjustment Balance Decreased'),
                 userId
             });
