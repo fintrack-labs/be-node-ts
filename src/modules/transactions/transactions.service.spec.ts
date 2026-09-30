@@ -16,6 +16,7 @@ describe('TransactionsService (TDD)', () => {
 
   let mockFindOne: any;
   let mockSave: any;
+  let mockTransaction: any;
 
   beforeEach(async () => {
     accountRepositoryMock = {};
@@ -24,15 +25,17 @@ describe('TransactionsService (TDD)', () => {
     mockFindOne = vi.fn();
     mockSave = vi.fn();
 
-    const dataSourceMock = {
-      transaction: vi.fn().mockImplementation(async (callback) => {
+    mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const mockManager = {
           findOne: mockFindOne,
-          create: vi.fn(),
+          create: vi.fn((_entityClass, entity) => entity),
           save: mockSave,
         };
         return callback(mockManager)
-      }),
+      });
+
+    const dataSourceMock = {
+      transaction: mockTransaction,
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -208,5 +211,26 @@ describe('TransactionsService (TDD)', () => {
     const savedSource = savedEntities.find((ent) => ent.id === 1);
     expect(savedSource).toBeDefined();
     expect(savedSource.balance).toBe(30000);
+    expect(mockFindOne).toHaveBeenCalledWith(Account, expect.objectContaining({
+      lock: { mode: 'pessimistic_write', onLocked: 'nowait' },
+    }));
+  });
+
+  it('retries the whole transaction when acquiring a row lock fails', async () => {
+    const dto: CreateTransactionDto = {
+      sourceAccountId: 1,
+      type: TransactionType.EXPENSE,
+      amount: 20000,
+    };
+    const mockAccount = { id: 1, userId, balance: 50000 };
+
+    mockFindOne
+      .mockRejectedValueOnce({ code: '55P03' })
+      .mockResolvedValueOnce(mockAccount);
+    mockSave.mockImplementation(async (entity: any) => entity);
+
+    await expect(service.create(userId, dto)).resolves.toBeDefined();
+    expect(mockTransaction).toHaveBeenCalledTimes(2);
+    expect(mockFindOne).toHaveBeenCalledTimes(2);
   });
 });
