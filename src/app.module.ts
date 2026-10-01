@@ -4,11 +4,14 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import databaseConfig from './config/database.config.js';
 import authServiceConfig from './config/auth-service.config.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { HealthModule } from './modules/health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CategoriesModule } from './modules/categories/categories.module.js';
-import { Category } from '@modules/categories/category.entity.js';
+import { AccountsModule } from './modules/accounts/accounts.module.js';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { UserContextInterceptor } from '@common/interceptors/user-context.interceptor.js';
+import { TransactionsModule } from './modules/transactions/transactions.module.js';
 
 @Module({
   imports: [
@@ -20,24 +23,26 @@ import { Category } from '@modules/categories/category.entity.js';
       ],
     }),
 
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'financial_db',
-      schema: process.env.DB_SCHEMA || 'fintrack_auth',
-      entities: [Category],
-      synchronize: false,
-      logging: true,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) =>
+        configService.getOrThrow<TypeOrmModuleOptions>('database'),
     }),
 
     HealthModule,
     AuthModule,
     CategoriesModule,
+    AccountsModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: UserContextInterceptor,
+    },
+  ],
 })
 export class AppModule { }

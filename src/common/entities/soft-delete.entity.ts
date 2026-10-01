@@ -1,4 +1,4 @@
-import { DeleteDateColumn, Column, BeforeSoftRemove, BeforeRecover } from 'typeorm';
+import { DeleteDateColumn, Column } from 'typeorm';
 import { AuditEntity } from './audit.entity.js';
 
 export abstract class SoftDeleteEntity extends AuditEntity {
@@ -7,17 +7,4 @@ export abstract class SoftDeleteEntity extends AuditEntity {
 
     @Column({ name: 'deleted_by', type: 'varchar', length: 50, nullable: true })
     deletedBy: string | null;
-
-    // @Column({ name: 'is_deleted', type: 'boolean', default: false })
-    // isDeleted: boolean;
-
-    @BeforeSoftRemove()
-    setDeletedFlag() {
-        // this.isDeleted = true;
-    }
-
-    @BeforeRecover()
-    unsetDeletedFlag() {
-        // this.isDeleted = false;
-    }
 }

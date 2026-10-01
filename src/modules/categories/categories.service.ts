@@ -2,9 +2,10 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from './category.entity.js';
 import { Repository } from 'typeorm';
-import { CategoryDto } from './dto/category.dto.js';
+import { CategoryDto, CategorySearchDto } from './dto/category.dto.js';
 import { plainToInstance } from 'class-transformer';
 import { CategoryResponseDto } from './dto/category.response.dto.js';
+import { PaginatedResponse } from '@common/interfaces/paginated-response.interface.js';
 
 @Injectable()
 export class CategoriesService {
@@ -26,7 +27,6 @@ export class CategoriesService {
         const newCategory = this.categoryRepository.create({
             ...dto,
             userId,
-            createdBy: userId,
         });
         const savedCategory = await this.categoryRepository.save(newCategory)
         return plainToInstance(CategoryResponseDto, savedCategory, {
@@ -35,6 +35,13 @@ export class CategoriesService {
     }
 
     async findById(userId: string, id: number): Promise<CategoryResponseDto> {
+        const category = await this.getById(userId, id);
+        return plainToInstance(CategoryResponseDto, category, {
+            excludeExtraneousValues: true
+        });
+    }
+
+    async getById(userId: string, id: number): Promise<Category> {
         const queryBuilder = this.categoryRepository
             .createQueryBuilder('category')
             .leftJoinAndSelect(
@@ -44,17 +51,15 @@ export class CategoriesService {
             )
             .andWhere('category.id = :id', { id })
             .andWhere('(category.userId = :userId OR category.userId IS NULL)', { userId });
-
         const category = await queryBuilder.getOne();
         if (!category) {
             throw new NotFoundException(`Category not found with id ${id}`);
         }
-        return plainToInstance(CategoryResponseDto, category, {
-            excludeExtraneousValues: true
-        });
+        return category;
     }
 
-    async findAll(userId: string, dto: CategoryDto): Promise<CategoryResponseDto[]> {
+    async findAll(userId: string, dto: CategorySearchDto): Promise<PaginatedResponse<CategoryResponseDto>> {
+        const { page = 1, limit = 10, sortBy = 'id', sortOrder = 'DESC', skip } = dto;
         const queryBuilder = this.categoryRepository
             .createQueryBuilder('category')
             .leftJoinAndSelect(
@@ -73,21 +78,24 @@ export class CategoriesService {
         } else {
             queryBuilder.andWhere('category.parentId IS NULL');
         }
-
-        const data = await queryBuilder
-            .orderBy('category.name', 'ASC')
-            .addOrderBy('children.name', 'ASC')
-            .getMany();
-
-        console.log('debug item', JSON.stringify(data[0], null, 2));
-
-        return plainToInstance(CategoryResponseDto, data, {
+        queryBuilder.skip(skip).take(limit);
+        queryBuilder.orderBy('category.name', 'ASC')
+            .addOrderBy('children.name', 'ASC');
+        const [categories, totalItems] = await queryBuilder.getManyAndCount();
+        const data = plainToInstance(CategoryResponseDto, categories, {
             excludeExtraneousValues: true
         });
+        return {
+            data,
+            page,
+            limit,
+            totalItems,
+            pageCount: Math.ceil(totalItems / limit),
+        };
     }
 
     async update(userId: string, id: number, dto: CategoryDto): Promise<CategoryResponseDto> {
-        const category = await this.findById(userId, id);
+        const category = await this.getById(userId, id);
         if (category.userId === null) {
             throw new UnauthorizedException('You are not authorized to update this category');
         }
@@ -96,8 +104,7 @@ export class CategoriesService {
                 name: dto.name,
                 type: dto.type,
                 parentId: dto.parentId,
-                userId,
-                updatedBy: userId
+                userId
             }).filter(([key, value]) => value !== undefined && value !== null)
         )
         await this.categoryRepository.update(id, updateData);
@@ -105,11 +112,11 @@ export class CategoriesService {
     }
 
     async delete(userId: string, id: number): Promise<void> {
-        const category = await this.findById(userId, id);
+        const category = await this.getById(userId, id);
         if (category.userId === null) {
             throw new UnauthorizedException('You are not authorized to delete this category');
         }
-        await this.categoryRepository.softDelete(id);
+        await this.categoryRepository.softRemove(category);
     }
 
 }

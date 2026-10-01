@@ -5,6 +5,9 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
+import { UserPojo } from '@common/interfaces/user.interface.js';
+import { UserContext } from '@common/context/user-context.js';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -14,10 +17,48 @@ async function bootstrap() {
     }),
   );
 
+  // CORS
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    credentials: true,
+  });
+
+  // hook fastify
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+
+  // hook for debug query before validate
+  // fastifyInstance.addHook('preValidation', (request: any, reply: any, done: any) => {
+  //   console.log('[FASTIFY HOOK DEBUG] Query Before Validate:', request.query);
+  //   console.log('[FASTIFY HOOK DEBUG] Body Before Validate:', request.body);
+  //   done();
+  // });
+
+  // hook for inject userContext and access in subscriber or interceptor
+  fastifyInstance.addHook('preHandler', (req, reply, done) => {
+    const user = (req as any).user as UserPojo;
+    if (user) {
+      UserContext.run(user, () => done());
+    } else {
+      done();
+    }
+  });
+
   const prefix = process.env.API_PREFIX;
   if (prefix && prefix.trim() !== '') {
     app.setGlobalPrefix(prefix);
   }
+
+  /**
+   * ignore property not in DTO
+   */
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true,
+    }),
+  );
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 8080);

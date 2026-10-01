@@ -1,10 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from "@nestjs/common";
 import { CategoriesService } from "./categories.service.js";
-import { CategoryDto } from "./dto/category.dto.js";
+import { CategoryDto, CategorySearchDto } from "./dto/category.dto.js";
 import { AuthGuard } from "@modules/auth/guards/auth/auth.guard.js";
 import { CurrentUser } from "@common/decorators/current-user.decorator.js";
 import { type UserPojo } from "@common/interfaces/user.interface.js";
 import { CategoryResponseDto } from "./dto/category.response.dto.js";
+import { PaginatedResponse } from "@common/interfaces/paginated-response.interface.js";
 
 @Controller('categories')
 @UseGuards(AuthGuard)
@@ -14,8 +15,8 @@ export class CategoriesController {
     @Get()
     async findAll(
         @CurrentUser() user: UserPojo,
-        @Query() query: CategoryDto,
-    ): Promise<CategoryResponseDto[]> {
+        @Query() query: CategorySearchDto,
+    ): Promise<PaginatedResponse<CategoryResponseDto>> {
         return this.categoriesService.findAll(user.userId, query);
     }
 
