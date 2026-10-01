@@ -21,3 +21,8 @@ yarn-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# local file
+local-debug/
+*.tsbuildinfo
+tsconfig.build.tsbuildinfo
