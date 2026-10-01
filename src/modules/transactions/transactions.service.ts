@@ -32,6 +32,62 @@ export class TransactionsService {
         private readonly dataSource: DataSource
     ) { }
 
+    async getDashboardMonth(userId: string, month: string) {
+        const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+        if (!match || Number(match[1]) < 1) {
+            throw new BadRequestException('Month must use YYYY-MM format');
+        }
+
+        const year = Number(match[1]);
+        const monthNumber = Number(match[2]);
+        const monthStart = new Date(Date.UTC(year, monthNumber - 1, 1));
+        const nextMonthStart = new Date(Date.UTC(year, monthNumber, 1));
+        const previousMonthStart = new Date(Date.UTC(year, monthNumber - 2, 1));
+        const previousMonthKey = `${previousMonthStart.getUTCFullYear()}-${String(previousMonthStart.getUTCMonth() + 1).padStart(2, '0')}`;
+        const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+
+        const rows = await this.transactionRepository
+            .createQueryBuilder('transaction')
+            .select("TO_CHAR(transaction.transactionDate, 'YYYY-MM')", 'month')
+            .addSelect('EXTRACT(DAY FROM transaction.transactionDate)::integer', 'day')
+            .addSelect('transaction.type', 'type')
+            .addSelect('SUM(transaction.amount)', 'total')
+            .where('transaction.userId = :userId', { userId })
+            .andWhere('transaction.transactionDate >= :startDate', { startDate: previousMonthStart })
+            .andWhere('transaction.transactionDate < :endDate', { endDate: nextMonthStart })
+            .groupBy("TO_CHAR(transaction.transactionDate, 'YYYY-MM')")
+            .addGroupBy('EXTRACT(DAY FROM transaction.transactionDate)')
+            .addGroupBy('transaction.type')
+            .getRawMany<{ month: string; day: number; type: TransactionType; total: string }>();
+
+        const transactionTypes = Object.values(TransactionType);
+        const totals = Object.fromEntries(transactionTypes.map((type) => [type, 0])) as Record<TransactionType, number>;
+        const previousTotals = Object.fromEntries(transactionTypes.map((type) => [type, 0])) as Record<TransactionType, number>;
+        const daily = Object.fromEntries(
+            transactionTypes.map((type) => [type, Array.from({ length: daysInMonth }, () => 0)])
+        ) as Record<TransactionType, number[]>;
+
+        for (const row of rows) {
+            const amount = Number(row.total);
+            if (row.month === month) {
+                totals[row.type] += amount;
+                daily[row.type][Number(row.day) - 1] += amount;
+            } else if (row.month === previousMonthKey) {
+                previousTotals[row.type] += amount;
+            }
+        }
+
+        return {
+            key: month,
+            year,
+            monthIndex: monthNumber - 1,
+            daysInMonth,
+            totals,
+            previousTotals,
+            daily,
+        };
+    }
+
     async create(userId: string, dto: CreateTransactionDto): Promise<TransactionResponseDto> {
         this.validateCreateInput(userId, dto);
         return this.createWithRetry(userId, dto, 0);

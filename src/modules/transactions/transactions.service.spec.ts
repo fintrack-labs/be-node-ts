@@ -233,4 +233,31 @@ describe('TransactionsService (TDD)', () => {
     expect(mockTransaction).toHaveBeenCalledTimes(2);
     expect(mockFindOne).toHaveBeenCalledTimes(2);
   });
+
+  it('aggregates dashboard totals and daily values for the requested user and month', async () => {
+    const queryBuilder = {
+      select: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      groupBy: vi.fn().mockReturnThis(),
+      addGroupBy: vi.fn().mockReturnThis(),
+      getRawMany: vi.fn().mockResolvedValue([
+        { month: '2026-05', day: 3, type: TransactionType.EXPENSE, total: '50.00' },
+        { month: '2026-06', day: 1, type: TransactionType.INCOME, total: '100.00' },
+        { month: '2026-06', day: 2, type: TransactionType.EXPENSE, total: '25.00' },
+      ]),
+    };
+    transactionRepositoryMock.createQueryBuilder = vi.fn().mockReturnValue(queryBuilder) as any;
+
+    const result = await service.getDashboardMonth(userId, '2026-06');
+
+    expect(result.totals[TransactionType.INCOME]).toBe(100);
+    expect(result.totals[TransactionType.EXPENSE]).toBe(25);
+    expect(result.previousTotals[TransactionType.EXPENSE]).toBe(50);
+    expect(result.daily[TransactionType.INCOME][0]).toBe(100);
+    expect(result.daily[TransactionType.EXPENSE][1]).toBe(25);
+    expect(result.daysInMonth).toBe(30);
+    expect(queryBuilder.where).toHaveBeenCalledWith('transaction.userId = :userId', { userId });
+  });
 });

@@ -13,6 +13,14 @@ export class TransactionsController {
         private readonly transactionService: TransactionsService
     ) { }
 
+    @Get('dashboard')
+    async getDashboardMonth(
+        @CurrentUser() user: UserPojo,
+        @Query('month') month: string,
+    ) {
+        return this.transactionService.getDashboardMonth(user.userId, month);
+    }
+
     @Get(':id')
     async get(
         @CurrentUser() user: UserPojo,
