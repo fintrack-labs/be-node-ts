@@ -1,124 +1,82 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# be-node-ts
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The **finance domain API** for FinTrack: accounts, categories, and transactions, with user-scoped access and safe balance updates.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)
+![Fastify](https://img.shields.io/badge/Fastify-000000?logo=fastify&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![TypeORM](https://img.shields.io/badge/TypeORM-FE0803?logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 
-## Description
+Part of [FinTrack Labs](https://github.com/fintrack-labs), a personal learning project on distributed backend design.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Highlights
 
-## Project setup
+- **Stateless token verification.** Validates RS256 bearer tokens locally against the auth service's **JWKS** (cached); no per-request call to auth.
+- **User-scoped by design.** The `userId` comes from the verified JWT subject, and every account, category, and transaction query is filtered by it.
+- **Concurrency-safe money movement.** Creating transactions and changing balances run inside database transactions with **pessimistic row locks**. Transfers update both accounts atomically.
+- **Audit and soft delete** through shared base entities and subscribers.
+- **Consistent pagination:** `{ data, page, limit, totalItems, pageCount }`.
 
-```bash
-$ npm install
+## Domain model
+
+| Entity | Notes |
+| --- | --- |
+| Account | Owned by a user; balance, currency, type, and a version column |
+| Category | System-wide or user-owned; supports parent/child hierarchy |
+| Transaction | Expense, income, transfer, or balance adjustment; optional account, category, and receipt metadata |
+
+## API
+
+Base path: `/api/v1` (port `8080`). All routes except health require `Authorization: Bearer <access token>`.
+
+| Resource | Path |
+| --- | --- |
+| Health | `/health` |
+| Accounts | `/accounts` |
+| Categories | `/categories` |
+| Transactions | `/transactions` |
+
+A ready-to-run collection is in [`be-api-client-test`](https://github.com/fintrack-labs/be-api-client-test).
+
+## Request flow
+
+```mermaid
+flowchart TD
+    Request[Authenticated request] --> Guard[AuthGuard + JWKS verification]
+    Guard --> Context[Current user context]
+    Context --> Controller[Controller]
+    Controller --> Service[Service]
+    Service -->|ownership checks| DB[(Finance PostgreSQL)]
+    Service -->|transaction + row locks| DB
 ```
 
-## Compile and run the project
+## Tech stack
+
+Node.js · TypeScript · NestJS (Fastify adapter) · TypeORM · PostgreSQL
+
+## Getting started
+
+Prerequisites: Node.js (LTS), PostgreSQL, and a running [`be-auth-ts`](https://github.com/fintrack-labs/be-auth-ts) (for the JWKS endpoint).
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+git clone https://github.com/fintrack-labs/be-node-ts.git
+cd be-node-ts
+npm install
+cp .env.example .env      # database settings and the auth JWKS URL
+npm run start:dev
 ```
 
-## Run tests
+<!-- TODO: samakan perintah & nama variabel dengan package.json dan .env.example -->
 
-```bash
-# unit tests
-$ npm run test
+## Known limitations & roadmap
 
-# e2e tests
-$ npm run test:e2e
+- Explicitly enforce **issuer, audience, and algorithm** when verifying JWTs.
+- Verify foreign-key constraints and category ownership rules at both database and service layers.
+- Add dependency/readiness checks (database, JWKS) beyond the basic health endpoint.
+- Add dashboard analytics (a first read model) to replace mock data in the frontend.
+- Publish a versioned OpenAPI contract to prevent DTO drift with the frontend and OCR service.
 
-# test coverage
-$ npm run test:cov
-```
+## Related repositories
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
-
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+[`fe-web`](https://github.com/fintrack-labs/fe-web) · [`be-auth-ts`](https://github.com/fintrack-labs/be-auth-ts) · [`be-ai-ocr-service`](https://github.com/fintrack-labs/be-ai-ocr-service) · [`be-api-client-test`](https://github.com/fintrack-labs/be-api-client-test)
